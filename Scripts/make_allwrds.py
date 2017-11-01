@@ -23,7 +23,7 @@ import apsw
 import glob
 from time import sleep
 os.chdir(os.path.expandvars("$REPFOLDER"))
-conn = create_engine("sqlite:///frd.sqlite")
+conn = create_engine("sqlite:///Data/frd.sqlite")
 
 #%% HELPERS
 
