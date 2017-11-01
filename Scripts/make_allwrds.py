@@ -25,41 +25,24 @@ from time import sleep
 os.chdir(os.path.expandvars("$REPFOLDER"))
 conn = create_engine("sqlite:///frd.sqlite")
 
-#%%
+#%% HELPERS
 
 def block_until_complete():
     result = int(sp.check_output('qstat | wc -l',shell=True))
     while result != 0:
         sleep(10)
         result = int(sp.check_output('qstat | wc -l',shell=True))
+        
+def make_series(symbol,req):
+    #the script
+    request=req.format(symbol=symbol,month="",day="",starttime="9:35",endtime="16:00")
+    with open("{symbol}.sas".format(symbol=symbol),"w+") as f:
+        f.write(request)
+    sp.call("qsas {symbol}.sas".format(symbol=symbol),
+            shell=True)
     
-
-
-
-############### ASSEMBLE MINUTE SERIES FOR EACH STOCK #######################
-
-bank_stocks = pd.read_csv("Data/Financial_Sector_Stocks_NASDAQ.csv",index_col=0)
-
-Symbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
-                            & ~bank_stocks["Market Cap"].str.contains("n/a") \
-                            ].values
-                            
-participant_stocks =  pd.read_excel("Data/participant_stocks.xlsx")
-
-toadd = []
-for i in participant_stocks.TICKERS:
-    if i!=i:
-        continue
-    else:
-        if "," in i:
-            toadd = toadd + i.upper().split(",")
-        else:
-            toadd = toadd + [i.upper()]
-toadd=np.unique([i.strip() for i in toadd if i.strip() != ""])
-Symbols = np.unique(np.concatenate([toadd,Symbols]))
-
-
-#%%
+    
+#%% REFERENCE STRINGS
 request  = """
 /* Acquire all minute by minute stock data from {symbol}
 as a big CSV that can be imported into a SQL database*/
@@ -123,36 +106,6 @@ run;
 """
 
 
-
-
-
-
-
-#%%
-def make_series(symbol,req):
-    #the script
-    request=req.format(symbol=symbol,month="",day="",starttime="9:35",endtime="16:00")
-    with open("{symbol}.sas".format(symbol=symbol),"w+") as f:
-        f.write(request)
-    sp.call("qsas {symbol}.sas".format(symbol=symbol),
-            shell=True)
-
-    
-    
-    
-#%%
-################################# DATA STEPS #################################
-    
-#first we must the series for the market funds
-make_series("RSP",request)
-make_series("VTI",request)
-block_until_complete()
-#now we can do the processing we need on the financial stocks
-for symbol in Symbols:
-    make_series(symbol,request+additional_SAS_commands)
-block_until_complete()
-
-#%%
 
 
 # identify the times to study.
@@ -234,31 +187,6 @@ discrete_times[0] = '2010-08-10 13:00:00-0400'
 timestamps[0] = 1281445200 #GMT: Tuesday, August 10, 2010 1:00:00 PM
 """
 
-#%% SETTING UP CONTENT ANALYSIS
-#The times we are interested in are now ascertained.
-#
-#Now we will build another database that derives statistics for each time delta.
-#We use pure SQL operations described in another file 
-#
-#It takes <1 second to calculate a single row of this table.
-#However we must calculate 60 rows per event (120+) and there are 700 stocks.
-#
-#Should take only 58 days...
-#
-#Clearly this is pleasantly parallel. One can run 5 sessions on WRDS at a time.
-#Each sessions gets 24 cores.  Therefore theoretical run time is like 11 hours. ;-)
-
-#In order to parallelize, we will use GNU Parallel and a file system based queue
-#This way it doesn't matter how many threads we actually have access to,
-#we will always be using maximum resources.
-#The basic idea is that timestamps.csv and todo_list.csv
-#contain the two queues of what needs to be done.
-#each thread-instance looks to see if another process has "claimed" a given stock symbol
-#by writing in a 'claimed' queue
-#if not claimed, then it claims it and proceeds to add it to its own
-#parallel queue.
-
-
 pd.Series(Symbols).to_csv("todo_list.csv",index=0)
 #submit each multithreading enabled parser
 #wait until completion
@@ -272,4 +200,38 @@ PROC EXPORT data=d OUTFILE="Data/stock_days.csv" DBMS=csv REPLACE;
 run;
 """)
     sp.call(["qsas","make_stock_days.sas"])
+block_until_complete()
+
+#%%
+
+############### ASSEMBLE MINUTE SERIES FOR EACH STOCK #######################
+
+bank_stocks = pd.read_csv("Data/Financial_Sector_Stocks_NASDAQ.csv",index_col=0)
+
+Symbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
+                            & ~bank_stocks["Market Cap"].str.contains("n/a") \
+                            ].values
+                            
+participant_stocks =  pd.read_excel("Data/participant_stocks.xlsx")
+
+toadd = []
+for i in participant_stocks.TICKERS:
+    if i!=i:
+        continue
+    else:
+        if "," in i:
+            toadd = toadd + i.upper().split(",")
+        else:
+            toadd = toadd + [i.upper()]
+toadd=np.unique([i.strip() for i in toadd if i.strip() != ""])
+Symbols = np.unique(np.concatenate([toadd,Symbols]))
+
+#%% 
+#first we must the series for the market funds
+make_series("RSP",request)
+make_series("VTI",request)
+block_until_complete()
+#now we can do the processing we need on the financial stocks
+for symbol in Symbols:
+    make_series(symbol,request+additional_SAS_commands)
 block_until_complete()
