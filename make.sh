@@ -62,3 +62,6 @@ wget https://www.dropbox.com/s/rwbzdru7nj5k4su/Financial_Sector_Stocks_NASDAQ.cs
 
 clear
 echo "All downloads complete... starting analysis"
+cd $REPFOLDER
+mkdir Scripts
+cp $GITFOLDER/Scripts/* $REPFOLDER/Scripts/

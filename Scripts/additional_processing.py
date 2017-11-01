@@ -147,5 +147,5 @@ d.to_sql("mp",engine,index=False,dtype={"time" : types.INTEGER,
 #%%
 engine.execute("CREATE UNIQUE INDEX time_idx on mp(datetime(time,'unixepoch'))")
 engine.execute("CREATE UNIQUE INDEX time_numeric_idx on mp(time)")
-sp.call("lzma -efz ./Data/{sym}.sqlite".format(sym=sym),shell=True)
+sp.call("~/anaconda2/bin/lzma -efz ./Data/{sym}.sqlite".format(sym=sym),shell=True)
 #%% zip it up
