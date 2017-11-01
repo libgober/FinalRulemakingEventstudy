@@ -199,7 +199,8 @@ format date yymmdd10.;
 PROC EXPORT data=d OUTFILE="Data/stock_days.csv" DBMS=csv REPLACE;
 run;
 """)
-    sp.call(["qsas","make_stock_days.sas"])
+
+sp.call(["qsas","make_stock_days.sas"])
 block_until_complete()
 
 #%%
