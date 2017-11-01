@@ -40,9 +40,9 @@ def make_series(symbol,req):
         f.write(request)
     sp.call("qsas {symbol}.sas".format(symbol=symbol),
             shell=True)
+
     
-    
-#%% REFERENCE STRINGS
+#%% REFERENCE CONSTANTS
 request  = """
 /* Acquire all minute by minute stock data from {symbol}
 as a big CSV that can be imported into a SQL database*/
@@ -106,6 +106,32 @@ run;
 """
 
 
+############### ASSEMBLE MINUTE SERIES FOR EACH STOCK #######################
+
+bank_stocks = pd.read_csv("Data/Financial_Sector_Stocks_NASDAQ.csv",index_col=0)
+
+Symbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
+                            & ~bank_stocks["Market Cap"].str.contains("n/a") \
+                            ].values
+                            
+participant_stocks =  pd.read_excel("Data/participant_stocks.xlsx")
+
+toadd = []
+for i in participant_stocks.TICKERS:
+    if i!=i:
+        continue
+    else:
+        if "," in i:
+            toadd = toadd + i.upper().split(",")
+        else:
+            toadd = toadd + [i.upper()]
+toadd=np.unique([i.strip() for i in toadd if i.strip() != ""])
+Symbols = np.unique(np.concatenate([toadd,Symbols]))
+
+
+
+
+#%%
 
 
 # identify the times to study.
@@ -202,30 +228,6 @@ run;
 
 sp.call(["qsas","make_stock_days.sas"])
 block_until_complete()
-
-#%%
-
-############### ASSEMBLE MINUTE SERIES FOR EACH STOCK #######################
-
-bank_stocks = pd.read_csv("Data/Financial_Sector_Stocks_NASDAQ.csv",index_col=0)
-
-Symbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
-                            & ~bank_stocks["Market Cap"].str.contains("n/a") \
-                            ].values
-                            
-participant_stocks =  pd.read_excel("Data/participant_stocks.xlsx")
-
-toadd = []
-for i in participant_stocks.TICKERS:
-    if i!=i:
-        continue
-    else:
-        if "," in i:
-            toadd = toadd + i.upper().split(",")
-        else:
-            toadd = toadd + [i.upper()]
-toadd=np.unique([i.strip() for i in toadd if i.strip() != ""])
-Symbols = np.unique(np.concatenate([toadd,Symbols]))
 
 #%% 
 #first we must the series for the market funds
