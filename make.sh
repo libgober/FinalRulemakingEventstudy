@@ -11,6 +11,7 @@ export REPFOLDER=$SCRATCH/Repfolder
 mkdir $SCRATCH
 mkdir $SCRATCH/downloads
 mkdir $REPFOLDER
+mkdir $REPFOLDER/Data
 cd $SCRATCH/downloads
 
 echo "Beginning to install necessary tools like python"
@@ -47,13 +48,16 @@ wget -c "https://www.sqlite.org/src/raw/ext/misc/csv.c?name=1a009b93650732e22334
 gcc -fPIC -lm -shared  -I$HOME/anaconda2/include csv.c -o csv.so
 
 clear
-echo "Environment is set, aacquiring data"
+echo "Environment is set, acquiring data"
 
-wget https://www.dropbox.com/sh/53ngc6h7cs6ycmr/AAC8nHWT5bT-pK_IUZs74sOCa?dl=1 -O frd.zip
-unzip frd.zip -d $REPFOLDER
+echo "Downloading the Financial Rulemaking Dataverse"
+wget https://www.dropbox.com/s/1l7l2lgyjhx4u2z/frd.sqlite?dl=1 -O $REPFOLDER/Data/frd.sqlite
 
-wget https://www.dropbox.com/s/ieq80o0k22anxxt/Handcoding%20Stocks_Nov1_2017.xlsx?dl=1 -O $REPFOLDER/Handmade\ Data/participant_stocks.xlsx
+echo "Downloading the Data on Stock Market Participants"
+wget https://www.dropbox.com/s/ieq80o0k22anxxt/Handcoding%20Stocks_Nov1_2017.xlsx?dl=1 -O $REPFOLDER/Data/participant_stocks.xlsx
+
+echo "Downloading the Data on Financial Stocks"
+wget https://www.dropbox.com/s/rwbzdru7nj5k4su/Financial_Sector_Stocks_NASDAQ.csv?dl=1 -O $REPFOLDER/Data/Financial_Sector_Stocks_NASDAQ.csv
 
 clear
 echo "All downloads complete... starting analysis"
-
