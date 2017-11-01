@@ -5,7 +5,8 @@
 # And adding the necessary sqlite extensions.
 
 #download anaconda into a scratch folder
-echo "Setting up environmet"
+echo "Setting up environment"
+export GITFOLDER=$(pwd)
 export SCRATCH=/scratch/$GROUP/$USER
 export REPFOLDER=$SCRATCH/Repfolder
 mkdir $SCRATCH
