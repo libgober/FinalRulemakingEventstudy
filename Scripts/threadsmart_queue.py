@@ -219,8 +219,9 @@ while check_if_any_tasks(todo,claimed):
     conn.loadextension(os.path.expanduser("~/libsqlitefunctions"))
     #build a list of parameters to supply to the query
     PARAMS = []
+    minutes = range(1,61) + [120,24*60]
     for i in times.stamp:
-        for m in xrange(1,61):
+        for m in [i for i xrange(1,61):
             PARAMS.append(
                     {"trademinstart":i,
                      "duration" : 60*m,
