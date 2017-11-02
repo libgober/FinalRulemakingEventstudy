@@ -221,7 +221,7 @@ while check_if_any_tasks(todo,claimed):
     PARAMS = []
     minutes = range(1,61) + [120,24*60]
     for i in times.stamp:
-        for m in [i for i xrange(1,61):
+        for m in minutes:
             PARAMS.append(
                     {"trademinstart":i,
                      "duration" : 60*m,
