@@ -60,8 +60,11 @@ wget https://www.dropbox.com/s/ieq80o0k22anxxt/Handcoding%20Stocks_Nov1_2017.xls
 echo "Downloading the Data on Financial Stocks"
 wget https://www.dropbox.com/s/rwbzdru7nj5k4su/Financial_Sector_Stocks_NASDAQ.csv?dl=1 -O $REPFOLDER/Data/Financial_Sector_Stocks_NASDAQ.csv
 
-clear
-echo "All downloads complete... starting analysis"
+echo "All downloads complete... moving necessary scripts into replication folder"
 cd $REPFOLDER
 mkdir Scripts
 cp $GITFOLDER/Scripts/* $REPFOLDER/Scripts/
+
+echo "Starting analysis"
+clear
+~/anaconda2/bin/python Scripts/make_allwrds.py
