@@ -110,7 +110,7 @@ run;
 
 bank_stocks = pd.read_csv("Data/Financial_Sector_Stocks_NASDAQ.csv",index_col=0)
 
-Symbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
+bankSymbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
                             & ~bank_stocks["Market Cap"].str.contains("n/a") \
                             ].values
                             
@@ -126,7 +126,7 @@ for i in participant_stocks.TICKERS:
         else:
             toadd = toadd + [i.upper()]
 toadd=np.unique([i.strip() for i in toadd if i.strip() != ""])
-Symbols = np.unique(np.concatenate([toadd,Symbols]))
+Symbols = np.unique(np.concatenate([toadd,bankSymbols]))
 
 
 
@@ -202,11 +202,14 @@ timing = pd.read_sql("""
 #Therefore
 
 discrete_times = np.unique(np.concatenate([
-        timing.earliest_time.values,
-        timing.feedly_time.values,
-        timing.wayback_time,
-        timing.foia_time]))
+        timing.earliest_time.dropna().values,
+        timing.feedly_time.dropna().values,
+        timing.wayback_time.dropna().values,
+        timing.foia_time.dropna().values]))
 
+
+    
+    
 pd.Series(discrete_times).to_csv("timestamps.csv",index=False)
 """
 discrete_times[0] = '2010-08-10 13:00:00-0400'
@@ -228,6 +231,89 @@ run;
 
 sp.call(["qsas","make_stock_days.sas"])
 block_until_complete()
+#%% setup our bootstrap placebo tests. 
+days = pd.read_csv("Data/stock_days.csv")
+#subset to days in the range of our than our dataset.
+days = days[(days.caldt >= '2010-08-10') & (days.caldt <='2016-11-23')] 
+#load participant stocks
+participant_stocks = pd.read_excel("Data/participant_stocks.xlsx")
+#ignore partsof this where there is no ticker
+participant_stocks = participant_stocks[~participant_stocks.TICKERS.isnull()]
+#capitalize every ticker for consistency
+participant_stocks["TICKERS"]=participant_stocks.TICKERS.str.upper()
+#setup to concatenate by rule into a big comma delimited list
+grpby = participant_stocks.groupby(
+        ['DocketNumber','DocketVersion'])
+#join all tickers by group
+bydocketv=grpby.agg(lambda x: ",".join(x))
+#per docket, split and count unique bank stocks
+bydocketv["participants"] = bydocketv.TICKERS.str.split(",").apply(
+        lambda x: [i.strip() for i in x if i.strip() in bankSymbols]).apply(
+        lambda x: np.unique(x).size)
+
+participants_per_docket = bydocketv["participants"].reset_index()
+
+#old code, useful if interested in placeboing comments rather than commenters
+#count the bank stocks in each row
+#participant_stocks["bank_commentsperrow"] = participant_stocks.TICKERS.str.split(
+#        ",",expand=False).apply(
+#                lambda x: len([i.strip() for i in x if i.strip() in bankSymbols]))
+#get the number of participants by row.
+#participants_by_row = participant_stocks.drop("CommentID",axis=1).groupby(
+#        ['DocketNumber','DocketVersion']).sum()
+#make multiindex into columns
+#participants_by_row = participants_by_row.reset_index()
+
+
+timing2 = pd.read_sql('timing',conn)
+
+timing2["earliest_time"]=timing2.ix[:,
+       ["foia_time","feedly_time","wayback_time"]].min(1)
+timing2["latest_time"]=timing2.ix[:,
+       ["foia_time","feedly_time","wayback_time"]].max(1)
+
+#now make sure that we can observe
+tmp = pd.to_datetime(timing2.earliest_time,unit='s')
+tmp = tmp.dt.hour + tmp.dt.minute/60
+
+tmp2 = pd.to_datetime(timing2.latest_time,unit='s')
+tmp2 = tmp2.dt.hour + tmp2.dt.minute/60 
+
+
+select=(tmp < 16) & (tmp2 > 9+35/60)
+tmp3 = timing2[select & (timing2.Action.isin(['Proposed','Final']))]
+template = pd.merge(tmp3[['Action','DocketNumber','DocketVersion']],
+         participants_per_docket,
+         how='left').fillna(0)
+
+
+
+#%% now we need to setup our set of random times.
+records=[]
+for i in range(200):
+    tmp = template.copy()
+    np.random.seed(i)
+    tmp['placebo_version'] = i
+    #draw random trading dates
+    for idx,row in tmp.iterrows():
+        idx,row
+        eventday = days.caldt.sample().values[0]
+        eventhour = (16-(9+35./60))*np.random.rand() + 9+35./60
+        row['unixtime']= arrow.get(eventday).\
+                shift(hours=eventhour).\
+                floor('minute').\
+                timestamp
+        stocks=np.random.choice(bankSymbols,size=int(row.participants),replace=False)
+        row['allparticipatingstocks'] = ",".join(stocks)
+        for stock in stocks:
+            toadd = row.copy()
+            toadd['TICKER'] = stock
+            records.append(toadd.to_dict())
+    
+placebo_schedule = pd.DataFrame(records)
+placebo_schedule.to_csv("Data/placebo_tests.csv")
+
+
 
 #%% 
 #first we must the series for the market funds
