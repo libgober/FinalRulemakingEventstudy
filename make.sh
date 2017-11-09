@@ -13,6 +13,7 @@ mkdir $SCRATCH
 mkdir $SCRATCH/downloads
 mkdir $REPFOLDER
 mkdir $REPFOLDER/Data
+mkdir $REPFOLDER/Analysis
 cd $SCRATCH/downloads
 
 echo "Beginning to install necessary tools like python"
@@ -55,7 +56,7 @@ echo "Downloading the Financial Rulemaking Dataverse"
 wget https://www.dropbox.com/s/1l7l2lgyjhx4u2z/frd.sqlite?dl=1 -O $REPFOLDER/Data/frd.sqlite
 
 echo "Downloading the Data on Stock Market Participants"
-wget https://www.dropbox.com/s/ieq80o0k22anxxt/Handcoding%20Stocks_Nov1_2017.xlsx?dl=1 -O $REPFOLDER/Data/participant_stocks.xlsx
+wget https://www.dropbox.com/s/ieq80o0 k22anxxt/Handcoding%20Stocks_Nov1_2017.xlsx?dl=1 -O $REPFOLDER/Data/participant_stocks.xlsx
 
 echo "Downloading the Data on Financial Stocks"
 wget https://www.dropbox.com/s/rwbzdru7nj5k4su/Financial_Sector_Stocks_NASDAQ.csv?dl=1 -O $REPFOLDER/Data/Financial_Sector_Stocks_NASDAQ.csv
