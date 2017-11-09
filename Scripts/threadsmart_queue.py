@@ -20,142 +20,108 @@ import subprocess as sp
 #for each stock this is the parameter combination we will want
 times = pd.read_csv("timestamps.csv",names=["stamp"])
 todo = pd.read_csv("todo_list.csv",names=["stock"])
-
+placebo_tests = pd.read_csv("Data/placebo_tests.csv")
 MAINQUERY = \
 """
-/* SQL Code Written on October 19, 2017. 
-
-This code was developed on dBeaver, using
-
-~/Dropbox/Collaborations/C_outcome_neutral.sql
-~/Dropbox/Collaborations/C.sqlite
-
-both synced to Dropbox on the day above prior to 8:02 AM. This block of text contains 
-minor edits.  The only significant difference here is that :outcome is 
-replaced with {outcome} and formatted by python,
-because the apsw package couldn't handle it (although dbeaver could).
-Also changed the ordering of outputs.
-
-This is a long query with that uses many temporary views. 
-In order to illustrate what each view does, the returned values have been shown
-assuming the database above and the following parameters for the query.  
-Simply remove the /* comment line and the expected query is returned.
-
-The following parameters were used:
-* :trademinstart is 1281445200, or for humans 2010-08-10 13:00:00
-* :duration is 3600
-* :outcome is PATH_SP500_EW
-* :count is 201
-* :sym_root is "C", quotes important or else dBeaver thinks is a column
-* :market_model is "RSP" (recommend either RSP=SP500_EW, VTI=Total Market, None)
-
-
+with initialprices as (
+	select 
+		time as t0,
+		quote as p01,
+		PATH_SP500_EW p02,
+		PATH_TOTALMARKET p03 
+	from mp 
+	where 
+	time(time,'unixepoch')=time(:trademinstart,'unixepoch') AND
+	time<=:trademinstart
+	order by t0 desc
+	limit :count
+	)
+/*select * from initialprices limit 3;
+t0         |p01                |p02                    |p03                   |
+-----------|-------------------|-----------------------|----------------------|
+1281445200 |4.015              |-3.2693789519492107    |-1.3806705609552956   |
+1281358800 |4.065              |-3.3363619819013293    |-1.6148377900283513   |
+1281099600 |4.035              |-3.1442862480379006    |-1.1992866480679423   |
 */
-
-with 
-initialquotes as (
---this table contains the times to use for t0 for each of up to :count days prior
---for each day, it finds the last quote before the event time
-select max(datetime(time,'unixepoch')) as t0 from mp
-where 
-time<=:trademinstart -- no need to look after the event time
-and 
-time(time,'unixepoch')<=time(:trademinstart,'unixepoch')
-and 
-{outcome} is NOT NULL
-group by date(time,'unixepoch')
-order by t0 desc
-limit :count
+,finalprices as (
+	select time as t1,
+		quote as p11,
+		PATH_SP500_EW p12,
+		PATH_TOTALMARKET p13 from 
+		mp where 
+		time(time,'unixepoch')=time(:trademinstart+:duration,'unixepoch') AND
+		time<=:trademinstart + :duration
+		order by t1 desc
+		limit :count
 )
-/*select * from initialquotes limit 3;
-***
-2010-08-10 13:00:00
-2010-08-09 13:00:00
-2010-08-06 13:00:00
-***
+/*select * from finalprices limit 3;
+t1         |p11   |p12                 |p13                 |
+-----------|------|--------------------|--------------------|
+1281448800 |4.015 |-3.2588199511125127 |-1.3534458650626484 |
+1281362400 |4.095 |-3.312884649782538  |-1.608183308478045  |
+1281103200 |4.035 |-3.1468922225827107 |-1.1913618452937664 |
 */
-,finalquotes as (
----this table contains the times to use for t1 for each of up to :count days prior
----for each day, it finds the last quote before the event time + duration
-select max(datetime(time,'unixepoch')) as t1 from mp
-where 
-time<=:trademinstart+:duration and
-time(time,'unixepoch')<=time(:trademinstart+:duration,'unixepoch')
-and {outcome} is not NULL
-group by date(time,'unixepoch')
-order by t1 desc
-limit :count
+,differences as 
+(select 
+	datetime(t0,'unixepoch') as t0,
+	datetime(t1,'unixepoch') as t1,
+	p11-p01 as d1,
+	p12-p02 as d2,
+	p13 - p03 as d3
+from initialprices A
+left join finalprices B
+on date(A.t0,'unixepoch')=date(B.t1,'unixepoch')
 )
-/*select * from finalquotes limit 3;
-***
-2010-08-10 13:05:00
-2010-08-09 13:05:00
-2010-08-06 13:05:00
-***
+/*select * from differences limit 3;
+t0                  |t1                  |d1                  |d2                     |d3                   |
+--------------------|--------------------|--------------------|-----------------------|---------------------|
+2010-08-10 13:00:00 |2010-08-10 14:00:00 |0.0                 |0.01055900083669803    |0.0272246958926472   |
+2010-08-09 13:00:00 |2010-08-09 14:00:00 |0.02999999999999936 |0.023477332118791328   |0.006654481550306235 |
+2010-08-06 13:00:00 |2010-08-06 14:00:00 |0.0                 |-0.0026059745448101523 |0.007924802774175843 |
 */
-,pricelist as ( 
---now that we know the times we want prices for, we simply join these times
---to the full series
-select
-	t0,t1,
-	A.{outcome} as p0,
-	B.{outcome} as p1,
-	B.{outcome}-A.{outcome} as d
-from initialquotes
-left join finalquotes
-on date(t0)=date(t1)
-left join mp A
-on initialquotes.t0=datetime(A."time",'unixepoch')
-left join mp B
-on finalquotes.t1=datetime(B."time",'unixepoch')
-)
-/*select * from pricelist limit 3;
-t0                  |t1                  |p0                  |p1                  |d                      |
---------------------|--------------------|--------------------|--------------------|-----------------------|
-2010-08-10 13:00:00 |2010-08-10 14:00:00 |-3.2693789519492107 |-3.2588199511125127 |0.01055900083669803    |
-2010-08-09 13:00:00 |2010-08-09 14:00:00 |-3.3363619819013293 |-3.312884649782538  |0.023477332118791328   |
-2010-08-06 13:00:00 |2010-08-06 14:00:00 |-3.1442862480379006 |-3.1468922225827107 |-0.0026059745448101523 |
- */
-,comparisons as (select d,d0 from pricelist
-cross join (select d as d0 from pricelist where date(:trademinstart,'unixepoch')=date(t0)) B 
-limit -1 offset 1
-)
+,comparisons as (select A.t0,A.t1,A.d1,A.d2,A.d3, B.d1 as e1,B.d2 as e2,B.d3 as e3 from differences A
+cross join (select * from differences where datetime(:trademinstart,'unixepoch')=t0) B 
+limit -1 offset 1)
 /*select * from comparisons limit 3;
-d                      |d0                  |
------------------------|--------------------|
-0.023477332118791328   |0.01055900083669803 |
--0.0026059745448101523 |0.01055900083669803 |
--0.013655092018214798  |0.01055900083669803 |
- */
---calculations
-select 
-:sym_root as sym_root,
-date(:trademinstart,'unixepoch') as eventdate,
-time(:trademinstart,'unixepoch') as eventtime,
-:trademinstart as unixtime,
-:market_model as market_model,
-:duration as duration,
-(avg(d<=d0)+avg(d<d0))/(2)as q,
-count(*) as n,
-avg(d) as m,
-stdev(d) as s,
-max(d0) as r,
-(max(d0)-avg(d))/stdev(d) as t from comparisons;
-/*
-sym_root |eventdate  |eventtime |market_model |unixtime   |duration |q                  |n   |m                     |s                   |r                   |t                  |
----------|-----------|----------|-------------|-----------|---------|-------------------|----|----------------------|--------------------|--------------------|-------------------|
-C        |2010-08-10 |13:00:00  |RSP          |1281445200 |3600     |0.7284768211920529 |151 |-0.006077189104862718 |0.03367658595720302 |0.01055900083669803 |0.4939987076689544 |
-
-Runtime of 392ms, several orders of magnitude faster than the R code we used at first. 
-
-We wish to run for each of 60 minutes, for each of 600 stocks, for each of 3 market models,
-for each date (152 by last count).
-
-WRDS gives access to 24*5 cores, each of which should be able to do this in parallel.
-Back of the envelope calculation assuming no inefficiency in parallelizing/1 sec per query
-
-(60*600*3*150)/(120*60*60)=38 hours as suggested runtime. 
+--e is the event day difference in returns
+0                  |t1                  |d1                   |d2                     |d3                   |e1  |e2                  |e3          
+-------------------|--------------------|---------------------|-----------------------|---------------------|----|--------------------|------------
+010-08-09 13:00:00 |2010-08-09 14:00:00 |0.02999999999999936  |0.023477332118791328   |0.006654481550306235 |0.0 |0.01055900083669803 |0.0272246958
+010-08-06 13:00:00 |2010-08-06 14:00:00 |0.0                  |-0.0026059745448101523 |0.007924802774175843 |0.0 |0.01055900083669803 |0.0272246958
+010-08-05 13:00:00 |2010-08-05 14:00:00 |0.009999999999999787 |-0.013655092018214798  |-0.04364792551142771 |0.0 |0.01055900083669803 |0.0272246958
 */
+,wideresults as (select 
+     :sym_root as sym_root,
+     date(:trademinstart,'unixepoch') as eventdate,
+     time(:trademinstart,'unixepoch') as eventtime,
+     :trademinstart as unixtime,
+     :duration as duration,
+	(avg(d1<=e1)+avg(d1<e1))/(2) as q1,
+	sum(d1 is not NULL) as n1,
+	avg(d1) as m1,
+	stdev(d1) as s1,
+	e1 as r1,  --e1 all identical so this is ok
+	(e1-avg(d1))/stdev(d1) as t1,
+	(avg(d2<=e2)+avg(d2<e2))/(2) as q2,
+	sum(d2 is not NULL) as n2,
+	avg(d2) as m2,
+	stdev(d2) as s2,
+	e2 as r2,  --e2 all identical so this is ok
+	(e2-avg(d2))/stdev(d2) as t2,
+	(avg(d3<=e3)+avg(d3<e3))/(3) as q3,
+	sum(d3 is not NULL) as n3,
+	avg(d3) as m3,
+	stdev(d3) as s3,
+	e3 as r3,  --e3 all identical so this is ok
+	(e3-avg(d3))/stdev(d3) as t3 from comparisons)
+/*select * from wideresults;
+q1                 |n1  |m1                     |s1                   |r1  |t1                  |q2                 |n2  |m2                    |s2                  |r2                  |t2                 |q3                 |n3  |m3                     |s3                  |r3                 |t3                 |
+-------------------|----|-----------------------|---------------------|----|--------------------|-------------------|----|----------------------|--------------------|--------------------|-------------------|-------------------|----|-----------------------|--------------------|-------------------|-------------------|
+0.5132450331125827 |151 |-0.0010815996496688787 |0.022712396328976845 |0.0 |0.04762155582363435 |0.7284768211920529 |151 |-0.006077189104862718 |0.03367658595720302 |0.01055900083669803 |0.4939987076689544 |0.4724061810154525 |151 |-0.0059960648848058394 |0.08310222008047566 |0.0272246958926472 |0.3997578012390315 |
+*/
+-- now output long
+--No market model
+select * from wideresults;
 """
 
 def refresh_claims():
@@ -173,6 +139,32 @@ def check_if_any_tasks(todo,claimed):
     Checks whether there is anything on the to do list that hasn't been claimed
     """
     return any(~todo.stock.isin(claimed.stock))
+
+def process_rawdata(rawdata):
+    """
+    Turns out that going from wide to long with sqlite temporary views
+    is pretty slow. Substantial time savings obtained via doing this transform
+    in python.
+    """
+    common = pd.DataFrame(rawdata).iloc[:,0:5]
+    common.columns = ["sym_root","eventdate","eventtime","unixtime",'duration']
+    #first tmp is the simple returns
+    simple=pd.DataFrame(rawdata).iloc[:,5:11]
+    simple.columns = ['q','n','m','s','r','t']
+    simple = pd.concat([common,simple],axis=1)
+    simple["market_model"] = "None"
+    #
+    rsp=pd.DataFrame(rawdata).iloc[:,11:17]
+    rsp.columns = ['q','n','m','s','r','t']
+    rsp = pd.concat([common,rsp],axis=1)
+    rsp["market_model"] = 'RSP'
+    #vti
+    vti = pd.DataFrame(rawdata).iloc[:,17:23]
+    vti.columns =  ['q','n','m','s','r','t']
+    vti = pd.concat([common,vti],axis=1)
+    vti["market_model"] = 'VTI'
+    out = pd.concat([simple,rsp,vti])
+    return out
 
 #%%
 claimed = refresh_claims()
@@ -216,35 +208,41 @@ while check_if_any_tasks(todo,claimed):
     sp.call(["rm",db_filename])    
     ##############  OPERATIONS ON  DB             ################# 
     conn.enableloadextension(True)
-    conn.loadextension(os.path.expanduser("~/libsqlitefunctions"))
+    conn.loadextension(os.path.expanduser("~/libsqlitefunctions.so"))
     #build a list of parameters to supply to the query
-    PARAMS = []
-    minutes = range(1,61) + [120,24*60]
+    main_analysis_params = []
+    minutes = range(1,61,1) + [120,24*60]
     for i in times.stamp:
         for m in minutes:
-            PARAMS.append(
+            main_analysis_params.append(
                     {"trademinstart":i,
                      "duration" : 60*m,
                      "sym_root" : stock,
                      "count" : 200 #No. of comparison days
                      })    
+    #add the placebo parameters
+    placebo_analysis_params=[]
+    for i in placebo_tests.unixtime[placebo_tests.TICKER==stock]:
+        for m in [60]:
+            placebo_analysis_params.append(
+                    {"trademinstart":i,
+                     "duration" : 60*m,
+                     "sym_root" : stock,
+                     "count" : 200 #No. of comparison days
+                     })
+    #combine
+    PARAMS = main_analysis_params+placebo_analysis_params
     #get a cursor
     c =conn.cursor()
     print "Starting analysis"
     alldata = []
-    for outcome,market_model in [("PATH_SP500_EW","RSP"),
-                                 ("PATH_TOTALMARKET","VTI"),
-                                 ("quote","None")]:
-        for param in PARAMS:
-            param["market_model"] = market_model
-        QUERY = MAINQUERY.format(outcome=outcome)
-        print "Starting",market_model
-        data = c.executemany(QUERY, PARAMS).fetchall()
-        data = pd.DataFrame(data,columns=["sym_root","eventdate","eventtime",
-                                          "unixtime","market_model",
-                                   "duration","q","n","m","s","r","t"])
-        alldata.append(data)
-    pd.concat(alldata).to_csv(analysis_filename,index=False)
+    print "Starting",stock
+    rawdata = c.executemany(MAINQUERY, PARAMS).fetchall()
+    #make the data long
+    #SQLite has bad optimizations for making long, this will be much faster
+    alldata=process_rawdata(rawdata)
+    #output
+    alldata.to_csv(analysis_filename,index=False)
     print "Done! Grabbing next stock"
     
 print "Nothing left to do! Exiting..."
