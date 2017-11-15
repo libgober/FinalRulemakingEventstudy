@@ -53,7 +53,7 @@ clear
 echo "Environment is set, acquiring data"
 
 echo "Downloading the Financial Rulemaking Dataverse"
-wget https://www.dropbox.com/s/1l7l2lgyjhx4u2z/frd.sqlite?dl=1 -O $REPFOLDER/Data/frd.sqlite
+wget https://www.dropbox.com/s/gbo7ia5xm48unbc/frd.sqlite?dl=0 -O $REPFOLDER/Data/frd.sqlite
 
 echo "Downloading the Data on Stock Market Participants"
 wget https://www.dropbox.com/s/ieq80o0k22anxxt/Handcoding%20Stocks_Nov1_2017.xlsx?dl=1 -O $REPFOLDER/Data/participant_stocks.xlsx
