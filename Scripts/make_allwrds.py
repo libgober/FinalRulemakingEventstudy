@@ -110,10 +110,13 @@ run;
 
 bank_stocks = pd.read_csv("Data/Financial_Sector_Stocks_NASDAQ.csv",index_col=0)
 
-bankSymbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
-                            & ~bank_stocks["Market Cap"].str.contains("n/a") \
+#bankSymbols= bank_stocks.Symbol[(bank_stocks.Country == "United States") \
+#                            & ~bank_stocks["Market Cap"].str.contains("n/a") \
+#                            ].values
+
+bankSymbols= bank_stocks.Symbol[~bank_stocks["Market Cap"].str.contains("n/a") \
                             ].values
-                            
+
 participant_stocks =  pd.read_excel("Data/participant_stocks.xlsx")
 
 toadd = []
@@ -324,3 +327,23 @@ block_until_complete()
 for symbol in Symbols:
     make_series(symbol,request+additional_SAS_commands)
 block_until_complete()
+
+
+sp.call("mkdir -f Analysis",shell=True)
+sp.call("rm -f claimed.csv",shell=True)
+sp.call("rm -f ~/tmp_lock_file",shell=True)
+for i in xrange(1,6):
+    call="qsub -cwd -N analyzer_no{i} -j y -b y " + \
+    "'seq 24 | ~/anaconda2/bin/parallel -n0 ~/anaconda2/bin/python Scripts/threadsmart_queue.py'"
+    sp.call(call.format(i=i),shell=True)
+
+block_until_complete() 
+
+
+sp.call("rm -f analysis.sqlite",shell=True)
+conn2 = create_engine("sqlite:///analysis.sqlite")
+for i in glob.glob("Analysis/*.csv"):
+    d = pd.read_csv(i)
+    d=d[~d.unixtime.isnull()]
+    d.unixtime = d.unixtime.astype('int')
+    d.to_sql("main",conn2,if_exists="append",index=False)
