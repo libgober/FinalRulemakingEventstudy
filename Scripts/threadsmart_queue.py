@@ -211,7 +211,7 @@ while check_if_any_tasks(todo,claimed):
     conn.loadextension(os.path.expanduser("~/libsqlitefunctions.so"))
     #build a list of parameters to supply to the query
     main_analysis_params = []
-    minutes = range(1,61,1) + [120,24*60] + range(-10,-1,1)
+    minutes = range(1,61,1) + [120,24*60] + range(-10,0,1)
     for i in times.stamp:
         for m in minutes:
             main_analysis_params.append(
