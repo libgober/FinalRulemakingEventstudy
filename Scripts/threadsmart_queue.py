@@ -108,7 +108,7 @@ limit -1 offset 1)
 	stdev(d2) as s2,
 	e2 as r2,  --e2 all identical so this is ok
 	(e2-avg(d2))/stdev(d2) as t2,
-	(avg(d3<=e3)+avg(d3<e3))/(3) as q3,
+	(avg(d3<=e3)+avg(d3<e3))/(2) as q3,
 	sum(d3 is not NULL) as n3,
 	avg(d3) as m3,
 	stdev(d3) as s3,
