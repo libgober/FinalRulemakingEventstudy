@@ -64,6 +64,7 @@ data d2 (rename=(BEST_BID=BEST_BID BEST_ASK=BEST_ASK Sym_Root=SYM_ROOT)) /view=d
       /* Define the dataset we will use as source */
       set taqmsec.nbbom_2014{month}{day}: taqmsec.nbbom_2015{month}{day}: 
           taqmsec.nbbom_2016{month}{day}: taqmsec.nbbom_2017{month}{day}:
+	  taqmsec.nbbom_2018{month}{day}:
 	(KEEP = Date Time_M BEST_BID BEST_ASK Sym_Root SYM_SUFFIX);
       /* no need to include irrelevant stuff */
       where
@@ -160,7 +161,8 @@ proc print data=d1 (obs=3); run;
 
 
                          The SAS System                                4
-                                        11:00 Thursday, October 12, 2017
+                                        11:00 Thursday, October 12, 
+					
 
 Obs  SYM_ROOT      DATE   TIME    BEST_BID  BBSize  BBASize  BBEXLIST
 
